@@ -1,0 +1,4 @@
+- hosts: nginx-hosts
+  roles:
+    - role: ~/nginx-ppa-source-ansible/roles/nginx
+      nginx_ppa_version: 'stable'

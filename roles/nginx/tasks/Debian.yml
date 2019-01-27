@@ -1,0 +1,61 @@
+---
+- name: Debian/Ubuntu | Install package creation tools
+  apt:
+    name: "{{ item }}"
+    state: present
+    cache_valid_time: 3600
+  with_items:
+    - dpkg-dev
+    - zip
+
+- name: Debian/Ubuntu | Add PPA repository for Nginx
+  apt_repository:
+    repo: 'ppa:nginx/{{ nginx_ppa_version|lower }}'
+    state: present
+    update_cache: yes
+  register: nginx_ppa_added
+
+- name: Debian/Ubuntu | Add PPA source repository for Nginx
+  apt_repository:
+    filename: 'nginx-{{ ansible_lsb.id|lower }}-stable-{{ ansible_lsb.codename|lower }}-src'
+    repo: 'deb-src http://ppa.launchpad.net/nginx/stable/{{ ansible_lsb.id|lower }} {{ ansible_lsb.codename|lower }} main'
+    state: present
+    update_cache: yes
+  register: nginx_ppa_source_added
+  when: nginx_ppa_version == 'stable'
+
+- name: Debian/Ubuntu | Ensure nginx will reinstall if the PPA was just added.
+  apt:
+    name: nginx
+    state: absent
+  when: 
+    - nginx_ppa_added.changed
+    - nginx_ppa_source_added.changed
+  #tags: ['skip_ansible_lint']
+
+- name:  Debian/Ubuntu | Create nginx built directory inside /opt
+  file: 
+    path: '{{ nginx-custom-build-dir }}'
+    state: directory
+    mode: 0755
+  register: nginx-custom-dir-exist
+
+- name: Debian/Ubuntu | Get Nginx Source
+  shell: 'cd {{ nginx-custom-build-dir }} && apt-get source nginx'
+  changed_when: true
+  register: nginx_ppa_source_downloaded
+  when: nginx-custom-dir-exist
+
+- name: Debian/Ubuntu | Build Dependencies for Nginx Source
+  apt:
+    name: nginx
+    state: build-dep
+
+- name: Debian/Ubuntu | Build nginx custom package
+  command: 'cd {{ nginx-custom-build-dir }} && dpkg-buildpackage -b'
+  register: nginx_ppa_source_compiled
+  when: nginx_ppa_source_downloaded
+
+- name: Debian/Ubuntu | Install nginx custom package
+  command: 'dpkg -i {{ nginx-custom-build-dir }}/nginx-full_*{{ ansible_lsb.codename|lower }}*.deb; apt-get install -f -y'
+  when: nginx_ppa_source_compiled

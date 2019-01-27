@@ -1,0 +1,4 @@
+---
+# choose ppa version stable or mainline
+nginx_ppa_version: 'stable'
+nginx-custom-build-dir: '/opt/nginx-custom'
